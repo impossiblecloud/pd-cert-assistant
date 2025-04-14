@@ -1,2 +1,3 @@
 # pd-cert-assistant
-An component to help with PD certificate automation
+
+A template repository for generic Go application container image with CI/CD.
