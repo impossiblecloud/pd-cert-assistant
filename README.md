@@ -1,3 +1,4 @@
 # pd-cert-assistant
 
-A template repository for generic Go application container image with CI/CD.
+A TiDB PD helper component to simplify and streamline TLS certificate generation
+for PD peer/server/client authentication.
