@@ -19,4 +19,6 @@ type AppConfig struct {
 
 	// HTTPRequestTimeout is the timeout for HTTP requests in seconds.
 	HTTPRequestTimeout int
+	// KubernetesPollInterval is the interval for polling Kubernetes in seconds.
+	KubernetesPollInterval int
 }

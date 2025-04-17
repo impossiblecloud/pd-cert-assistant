@@ -2,7 +2,7 @@
 # Simple tool to watch directory for new files and upload them to S3
 #
 
-FROM golang:1.23.6 AS test
+FROM golang:1.24.2 AS test
 WORKDIR /build
 ENV GOPATH=/go
 ENV PATH="$PATH:$GOPATH/bin"

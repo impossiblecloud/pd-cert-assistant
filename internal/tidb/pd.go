@@ -54,3 +54,18 @@ func PDGetMemberNames(conf cfg.AppConfig) ([]string, error) {
 
 	return names, nil
 }
+
+// GetUniqueDomains extracts unique domains from a list of hosts.
+func GetUniqueDomains(hosts []string) []string {
+	var result []string
+	for _, host := range hosts {
+		domain := utils.GetDomainFromHost(host)
+		if domain == "" {
+			continue
+		}
+		if !utils.Contains(result, domain) {
+			result = append(result, domain)
+		}
+	}
+	return result
+}
