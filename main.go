@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -66,14 +67,31 @@ func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 	}
 }
 
+// GetIPs handler
+func (s *State) GetIPs(w http.ResponseWriter, r *http.Request) {
+	glog.V(10).Info("Got HTTP request for /health")
+
+	jsonResponse, err := json.Marshal(s.IPAddresses)
+	if err != nil {
+		glog.Errorf("Failed to marshal IP addresses: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `{"error": "Failed to encode IP addresses"}`)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResponse)
+}
+
 // Main web server
-func runMainWebServer(config cfg.AppConfig, listen string) {
+func (s *State) RunMainWebServer(config cfg.AppConfig, listen string) {
 	// Setup http router
 	router := mux.NewRouter().StrictSlash(true)
 
 	// Routes
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/metrics", handleMetrics(config)).Methods("GET")
+	router.HandleFunc("/api/ips", s.GetIPs).Methods("GET")
 	router.HandleFunc("/", rootHandler).Methods("GET")
 
 	// Run main http router
@@ -137,5 +155,5 @@ func main() {
 	glog.V(4).Infof("Unique TiDB cluster domains: %+v", domains)
 
 	go state.IPWatchLoop(config, kubeClient)
-	runMainWebServer(config, listen)
+	state.RunMainWebServer(config, listen)
 }
