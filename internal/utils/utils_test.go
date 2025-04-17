@@ -80,3 +80,49 @@ func TestMakeHTTPRequestWithInsecureSkipVerify(t *testing.T) {
 		t.Errorf("Expected no error for insecure request, got: %v", err)
 	}
 }
+
+// TestContains tests the Contains function.
+func TestContains(t *testing.T) {
+	tests := []struct {
+		slice    []string
+		item     string
+		expected bool
+	}{
+		{[]string{"apple", "banana", "cherry"}, "banana", true},
+		{[]string{"apple", "banana", "cherry"}, "grape", false},
+		{[]string{}, "banana", false},
+		{[]string{"apple", "banana", "banana"}, "banana", true},
+		{[]string{"apple", "banana", "cherry"}, "", false},
+		{[]string{"", "banana", "cherry"}, "", true},
+	}
+
+	for _, test := range tests {
+		result := Contains(test.slice, test.item)
+		if result != test.expected {
+			t.Errorf("For slice %v and item %q, expected %v, got %v", test.slice, test.item, test.expected, result)
+		}
+	}
+}
+
+// TestGetDomainFromHost tests the GetDomainFromHost function.
+func TestGetDomainFromHost(t *testing.T) {
+	tests := []struct {
+		host     string
+		expected string
+	}{
+		{"example.com", ""},
+		{"sub.example.com", "example.com"},
+		{"sub.sub.example.com", "sub.example.com"},
+		{"localhost", ""},
+		{"", ""},
+		{"example", ""},
+		{"pd.namespace.svc.cluster.local", "namespace.svc.cluster.local"},
+	}
+
+	for _, test := range tests {
+		result := GetDomainFromHost(test.host)
+		if result != test.expected {
+			t.Errorf("For host %q, expected %q, got %q", test.host, test.expected, result)
+		}
+	}
+}

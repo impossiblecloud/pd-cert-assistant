@@ -84,3 +84,22 @@ func ParseCommaSeparatedLine(line string) []string {
 	}
 	return parts
 }
+
+// GetDomainFromHost extracts the domain from a given host string.
+func GetDomainFromHost(host string) string {
+	parts := strings.Split(host, ".")
+	if len(parts) < 3 {
+		return ""
+	}
+	return strings.Join(parts[1:], ".")
+}
+
+// Contains checks if a slice contains a specific string.
+func Contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
