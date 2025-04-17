@@ -13,10 +13,11 @@ import (
 
 	"github.com/impossiblecloud/pd-cert-assistant/internal/cfg"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/metrics"
+	"github.com/impossiblecloud/pd-cert-assistant/internal/tidb"
 )
 
 // Constants
-const version = "0.0.1"
+var Version string
 
 // Prometheus metrics handler
 func handleMetrics(config cfg.AppConfig) http.HandlerFunc {
@@ -32,7 +33,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	glog.V(10).Info("Got HTTP request for /")
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Up and running. Version: %s", version)
+	fmt.Fprintf(w, "Up and running. Version: %s", Version)
 }
 
 // Health handler
@@ -61,22 +62,44 @@ func main() {
 	var listen string
 	var showVersion bool
 
+	if Version == "" {
+		Version = "unknown"
+	}
+
 	// Init config
 	config := cfg.AppConfig{}
+	config.HTTPRequestTimeout = 5 // seconds
 
 	flag.StringVar(&listen, "listen", ":8765", "Address:port to listen on")
 	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
+	flag.StringVar(&config.PDAddress, "pd-address", "tidb-cluster-pd:2379", "Address:port of PD server")
+	flag.StringVar(&config.TLSCertPath, "tls-cert", "", "Path to the TLS certificate file")
+	flag.StringVar(&config.TLSKeyPath, "tls-key", "", "Path to the TLS key file")
+	flag.StringVar(&config.TLSCAPath, "tls-ca", "", "Path to the TLS CA certificate file")
+	flag.BoolVar(&config.TLSInsecure, "tls-insecure", false, "Skip TLS verification (not recommended)")
+
 	flag.Parse()
 
 	// Show and exit functions
 	if showVersion {
-		fmt.Printf("Version: %s\n", version)
+		fmt.Printf("Version: %s\n", Version)
 		os.Exit(0)
 	}
 
 	// Init metric
-	config.Metrics = metrics.InitMetrics(version)
+	config.Metrics = metrics.InitMetrics(Version)
 
-	glog.V(4).Infof("Starting application. Version: %s", version)
+	// Test things
+	pdNames, err := tidb.PDGetMemberNames(config)
+	if err != nil {
+		glog.Fatalf("Failed to get PD member names: %v", err)
+	}
+
+	// Log some useful information
+	glog.V(4).Infof("Starting application. Version: %s", Version)
+	glog.V(4).Infof("PD Address: %s", config.PDAddress)
+	glog.V(4).Infof("TLS Config - Cert: %s, Key: %s, CA: %s", config.TLSCertPath, config.TLSKeyPath, config.TLSCAPath)
+	glog.V(4).Infof("PD member names: %+v", pdNames)
+
 	runMainWebServer(config, listen)
 }
