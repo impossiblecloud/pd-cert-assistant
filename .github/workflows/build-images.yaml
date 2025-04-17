@@ -9,7 +9,8 @@ env:
 
 jobs:
   build-and-push-image:
-    if: github.event.review.state == 'approved'
+    # TODO: uncomment this when active development is done
+    # if: github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     permissions:
       contents: read
