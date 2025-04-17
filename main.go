@@ -62,6 +62,10 @@ func main() {
 	var listen string
 	var showVersion bool
 
+	if Version == "" {
+		Version = "unknown"
+	}
+
 	// Init config
 	config := cfg.AppConfig{}
 	config.HTTPRequestTimeout = 5 // seconds
