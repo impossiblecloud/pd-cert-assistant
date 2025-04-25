@@ -69,3 +69,13 @@ func GetUniqueDomains(hosts []string) []string {
 	}
 	return result
 }
+
+// BuildPDAssistantHostnames generates PD Assistant hostnames based on the provided configuration and domains.
+func BuildPDAssistantHostnames(conf cfg.AppConfig, pdNames []string) []string {
+	var pdAssistantHosts []string
+	domains := GetUniqueDomains(pdNames)
+	for _, domain := range domains {
+		pdAssistantHosts = append(pdAssistantHosts, conf.PDAssistantHostPrefix+"."+domain)
+	}
+	return pdAssistantHosts
+}

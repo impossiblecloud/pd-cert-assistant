@@ -88,3 +88,8 @@ func (c *Client) GetCiliumNodes() ([]string, error) {
 
 	return internalIPs, nil
 }
+
+func (c *Client) UpdateCertificate(IPs []string) error {
+	// TODO: implement the logic to update the certificate based on the IPs
+	return nil
+}
