@@ -12,13 +12,14 @@ import (
 	"github.com/impossiblecloud/pd-cert-assistant/internal/metrics"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/server"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/tidb"
+	"github.com/impossiblecloud/pd-cert-assistant/internal/utils"
 )
 
 // Constants
 var Version string
 
 func main() {
-	var listen, kubeconfig string
+	var listen, kubeconfig, pdAssistantAddresses string
 	var showVersion bool
 
 	if Version == "" {
@@ -28,10 +29,6 @@ func main() {
 	// Init config
 	config := cfg.AppConfig{}
 	config.HTTPRequestTimeout = 5 // seconds
-	config.BearerToken = os.Getenv("BEARER_TOKEN")
-	if config.BearerToken == "" {
-		glog.Fatal("BEARER_TOKEN environment variable is not set")
-	}
 
 	// Init state
 	srv := server.State{}
@@ -50,9 +47,23 @@ func main() {
 	flag.IntVar(&config.PDAssistantPollInterval, "pd-assistant-poll-interval", 300, "Interval for polling all pd-assistants in seconds")
 	flag.IntVar(&config.CertUpdateInterval, "cert-update-interval", 300, "Interval for updating PD certificate in seconds")
 	flag.StringVar(&config.PDAssistantHostPrefix, "pd-assistant-host-prefix", "pd-assistant", "Host prefix for PD Assistant instances")
+	flag.StringVar(&config.PDAssistantScheme, "pd-assistant-scheme", "https", "Scheme for PD Assistant instances (http or https)")
+	flag.StringVar(&config.PDAssistantPort, "pd-assistant-port", "443", "Port for PD Assistant instances")
+	flag.StringVar(&pdAssistantAddresses, "pd-assistant-addresses", "", "List of PD Assistant addresses (comma-separated). Overrides --pd-assistant-host-prefix and ignored --pd-address if provided")
 	flag.StringVar(&config.CertificateName, "cert-name", "pd-assistant", "Name of the certificate to be used")
+	flag.StringVar(&config.CertificateNamespace, "cert-namespace", "default", "Namespace where the certificate is stored")
+	flag.BoolVar(&config.PDAssistantTLSInsecure, "pd-assistant-tls-insecure", false, "Skip TLS verification for PD Assistant instances (not recommended)")
 
 	flag.Parse()
+
+	// Update config based on command line arguments
+	if pdAssistantAddresses != "" {
+		config.PDAssistantAddresses = utils.ParseCommaSeparatedLine(pdAssistantAddresses)
+	}
+	config.BearerToken = os.Getenv("BEARER_TOKEN")
+	if config.BearerToken == "" {
+		glog.Fatal("BEARER_TOKEN environment variable is not set")
+	}
 
 	// Show and exit functions
 	if showVersion {
@@ -86,11 +97,8 @@ func main() {
 	// Watch CliliumNode IPs and update the state
 	go srv.IPWatchLoop(config, kubeClient)
 
-	// Watch all pd-assistant IPs and update the state
-	go srv.AllIPsFetchLoop(config)
-
-	// Update the certificate based on the IPs
-	go srv.UpdateCertLoop(config, kubeClient)
+	// Watch all pd-assistant IPs and update the certificate if needed
+	go srv.FetchIPsAndUpdateCertLoop(config, kubeClient)
 
 	// Start the main web server
 	srv.RunMainWebServer(config, listen)

@@ -9,9 +9,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
+	"github.com/impossiblecloud/pd-cert-assistant/internal/api"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/cfg"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/k8s"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/metrics"
+	"github.com/impossiblecloud/pd-cert-assistant/internal/tidb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -76,6 +78,28 @@ func authHandler(endpoint http.HandlerFunc, cfg cfg.AppConfig) http.HandlerFunc 
 	})
 }
 
+func (s *State) getAllIPAddresses(conf cfg.AppConfig, pdaAddresses []string) ([]string, error) {
+	allIPAddresses := []string{}
+	for _, pdaAddress := range pdaAddresses {
+		glog.V(6).Infof("Fetching IPs from pd-assistant: %s", pdaAddress)
+		ips, err := api.GetIPs(conf, pdaAddress)
+		if err != nil {
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress).Inc()
+			return nil, fmt.Errorf("failed to fetch IPs from pd-assistant %s: %v", pdaAddress, err)
+
+		}
+		if len(ips) == 0 {
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress).Inc()
+			return nil, fmt.Errorf("no IPs found in pd-assistant %s", pdaAddress)
+		}
+
+		// Update the state with the fetched IPs
+		allIPAddresses = append(allIPAddresses, ips...)
+		glog.V(6).Infof("Fetched IPs from pd-assistant %s: %+v", pdaAddress, ips)
+	}
+	return allIPAddresses, nil
+}
+
 // IPWatchLoop continuously fetches CiliumNode IPs and updates the state
 func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 	for {
@@ -84,6 +108,7 @@ func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 			glog.Errorf("Failed to fetch CiliumNodes: %v", err)
 		} else {
 			s.IPAddresses = ciliumNodeIPs
+			s.Metrics.LocalIPs.WithLabelValues().Set(float64(len(ciliumNodeIPs)))
 			glog.V(6).Infof("Updated State IPs to: %+v", ciliumNodeIPs)
 		}
 
@@ -93,34 +118,54 @@ func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 }
 
 // AllIPsFetchLoop continuously fetches IPs from all pd-assistant instances and updates the state
-func (s *State) AllIPsFetchLoop(conf cfg.AppConfig) {
+func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 	for {
-		// TODO: implement the logic to fetch IPs from all pd-assistant instances
-		s.AllIPAddresses = s.IPAddresses
-		glog.V(6).Infof("Updated All IPs to: %+v", s.AllIPAddresses)
-		// Sleep for a while before the next iteration
+		// Sleep before iteration
 		time.Sleep(time.Duration(conf.PDAssistantPollInterval) * time.Second)
-	}
-}
 
-// UpdateCertLoop continuously checks and updates the certificate based on the IPs stored in the state.
-func (s *State) UpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
-	for {
-		glog.V(6).Infof("Checking for certificate updates...")
-		err := kc.UpdateCertificate(s.AllIPAddresses)
+		// Do stuff
+		pdaAddresses := conf.PDAssistantAddresses
+		if len(conf.PDAssistantAddresses) == 0 {
+			// If no pd-assistant addresses are provided, fetch them from the PD server
+			var err error
+			pdaAddresses, err = tidb.GetPDAssistantURLs(conf)
+			if err != nil {
+				glog.Errorf("Failed to fetch PD Assistant URLs: %s", err.Error())
+				// It's unsafe to continue if we can't fetch IPs, so we log the error and skip this iteration
+				continue
+			}
+		}
+		allIPAddresses, err := s.getAllIPAddresses(conf, pdaAddresses)
+		if err != nil {
+			glog.Errorf("Failed to fetch IPs from pd-assistants: %v", err)
+			// It's unsafe to continue if we can't fetch IPs, so we log the error and skip this iteration
+			continue
+		}
+
+		// Failsafe check for empty IPs, we should never have empty IPs
+		if len(allIPAddresses) == 0 {
+			glog.Errorf("No IPs found in pd-assistants")
+			continue
+		}
+
+		// Atomic update of AllIPAddresses in the state, only if all IPs are fetched successfully
+		s.AllIPAddresses = allIPAddresses
+		s.Metrics.AllIPs.WithLabelValues().Set(float64(len(allIPAddresses)))
+		glog.V(4).Infof("Updated All IPs to: %+v", s.AllIPAddresses)
+		glog.V(6).Infof("Checking for certificate updates, certificate name: %s", conf.CertificateName)
+
+		// Update the certificate with the new IPs if needed
+		err = kc.UpdateCertificate(conf, allIPAddresses)
 		if err != nil {
 			s.Metrics.CertUpdateErrors.WithLabelValues().Inc()
 			glog.Errorf("Failed to update certificate: %v", err)
 		}
-
-		// Sleep for a while before the next iteration
-		time.Sleep(time.Duration(conf.KubernetesPollInterval) * time.Second)
 	}
 }
 
 // GetIPs handler with bearer token authentication
 func (s *State) GetIPs(w http.ResponseWriter, r *http.Request) {
-	glog.V(10).Info("Got HTTP request for /api/ips")
+	glog.V(10).Infof("Got HTTP request for %s", api.ApiIPsPath)
 
 	// Marshal the IP addresses to JSON
 	jsonResponse, err := json.Marshal(s.IPAddresses)
@@ -145,7 +190,7 @@ func (s *State) RunMainWebServer(config cfg.AppConfig, listen string) {
 	// Routes
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/metrics", s.handleMetrics(config)).Methods("GET")
-	router.HandleFunc("/api/ips", authHandler(s.GetIPs, config)).Methods("GET")
+	router.HandleFunc(api.ApiIPsPath, authHandler(s.GetIPs, config)).Methods("GET")
 	router.HandleFunc("/", rootHandler).Methods("GET")
 
 	// Run main http router

@@ -59,7 +59,7 @@ func TestParseCommaSeparatedLineWithSpecialCharacters(t *testing.T) {
 
 // TestMakeHTTPSRequest tests the MakeHTTPSRequest function.
 func TestMakeHTTPRequestWithInvalidURL(t *testing.T) {
-	_, err := MakeHTTPRequest(":", "", "", "", false, 2)
+	_, err := MakeHTTPRequest(":", "", "", "", false, 2, "")
 	if err == nil {
 		t.Errorf("Expected error due to invalid URL, got nil")
 	}
@@ -67,7 +67,7 @@ func TestMakeHTTPRequestWithInvalidURL(t *testing.T) {
 
 func TestMakeHTTPRequestWithoutCerts(t *testing.T) {
 	// Test with a valid URL but without certificates
-	_, err := MakeHTTPRequest("https://example.com", "", "", "", false, 2)
+	_, err := MakeHTTPRequest("https://example.com", "", "", "", false, 2, "")
 	if err != nil {
 		t.Errorf("Expected no error for request without certificates, got: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestMakeHTTPRequestWithoutCerts(t *testing.T) {
 
 func TestMakeHTTPRequestWithInsecureSkipVerify(t *testing.T) {
 	// Test with insecure skip verify set to true
-	_, err := MakeHTTPRequest("https://example.com", "", "", "", true, 2)
+	_, err := MakeHTTPRequest("https://example.com", "", "", "", true, 2, "")
 	if err != nil {
 		t.Errorf("Expected no error for insecure request, got: %v", err)
 	}
@@ -123,6 +123,30 @@ func TestGetDomainFromHost(t *testing.T) {
 		result := GetDomainFromHost(test.host)
 		if result != test.expected {
 			t.Errorf("For host %q, expected %q, got %q", test.host, test.expected, result)
+		}
+	}
+}
+
+// TestIPListsEqual tests the IPListsEqual function.
+func TestIPListsEqual(t *testing.T) {
+	tests := []struct {
+		a, b     []string
+		expected bool
+	}{
+		{[]string{"192.168.1.1", "10.0.0.1"}, []string{"10.0.0.1", "192.168.1.1"}, true},
+		{[]string{"192.168.1.1", "10.0.0.1"}, []string{"192.168.1.1", "10.0.0.1"}, true},
+		{[]string{"192.168.1.1", "10.0.0.1"}, []string{"192.168.1.1", "10.0.0.2"}, false},
+		{[]string{"192.168.1.1"}, []string{"192.168.1.1"}, true},
+		{[]string{"192.168.1.1"}, []string{"10.0.0.1"}, false},
+		{[]string{}, []string{}, true},
+		{[]string{"192.168.1.1", "192.168.1.1"}, []string{"192.168.1.1"}, false},
+		{[]string{"192.168.1.1"}, []string{"192.168.1.1", "192.168.1.1"}, false},
+	}
+
+	for _, test := range tests {
+		result := IPListsEqual(test.a, test.b)
+		if result != test.expected {
+			t.Errorf("For lists %v and %v, expected %v, got %v", test.a, test.b, test.expected, result)
 		}
 	}
 }

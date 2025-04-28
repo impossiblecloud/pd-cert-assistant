@@ -17,7 +17,7 @@ func PDGetMemberNames(conf cfg.AppConfig) ([]string, error) {
 		pdScheme = "https://"
 	}
 	pdAddress := pdScheme + conf.PDAddress + "/pd/api/v1/members"
-	resp, err := utils.MakeHTTPRequest(pdAddress, conf.TLSCertPath, conf.TLSKeyPath, conf.TLSCAPath, conf.TLSInsecure, conf.HTTPRequestTimeout)
+	resp, err := utils.MakeHTTPRequest(pdAddress, conf.TLSCertPath, conf.TLSKeyPath, conf.TLSCAPath, conf.TLSInsecure, conf.HTTPRequestTimeout, "")
 	// Check if the request was successful
 	if err != nil {
 		return nil, fmt.Errorf("failed to make HTTPS request: %v", err)
@@ -71,11 +71,31 @@ func GetUniqueDomains(hosts []string) []string {
 }
 
 // BuildPDAssistantHostnames generates PD Assistant hostnames based on the provided configuration and domains.
-func BuildPDAssistantHostnames(conf cfg.AppConfig, pdNames []string) []string {
+func BuildPDAssistantHostnames(conf cfg.AppConfig, hosts []string) []string {
 	var pdAssistantHosts []string
-	domains := GetUniqueDomains(pdNames)
+	domains := GetUniqueDomains(hosts)
 	for _, domain := range domains {
 		pdAssistantHosts = append(pdAssistantHosts, conf.PDAssistantHostPrefix+"."+domain)
 	}
 	return pdAssistantHosts
+}
+
+// GetPDAssistantURLs retrieves PD Assistant hostnames based on the PD member names and generates a list of URLs.
+func GetPDAssistantURLs(conf cfg.AppConfig) ([]string, error) {
+	pdNames, err := PDGetMemberNames(conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PD member names: %v", err)
+	}
+
+	pdAssistantHosts := BuildPDAssistantHostnames(conf, pdNames)
+	if len(pdAssistantHosts) == 0 {
+		return nil, errors.New("no PD Assistant hostnames found")
+	}
+
+	pdAssistanURLs := []string{}
+	for _, host := range pdAssistantHosts {
+		pdAssistanURLs = append(pdAssistanURLs, fmt.Sprintf("%s://%s:%s", conf.PDAssistantScheme, host, conf.PDAssistantPort))
+	}
+
+	return pdAssistanURLs, nil
 }
