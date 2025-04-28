@@ -11,10 +11,13 @@ type AppMetrics struct {
 	Registry *prometheus.Registry
 
 	// Gauges
-	Config *prometheus.GaugeVec
+	Config   *prometheus.GaugeVec
+	AllIPs   *prometheus.GaugeVec
+	LocalIPs *prometheus.GaugeVec
 
 	// Counters
-	CertUpdateErrors *prometheus.CounterVec
+	CertUpdateErrors       *prometheus.CounterVec
+	PDAssistantFetchErrors *prometheus.CounterVec
 }
 
 func InitMetrics(version string) AppMetrics {
@@ -32,6 +35,24 @@ func InitMetrics(version string) AppMetrics {
 		[]string{"version"},
 	)
 
+	am.AllIPs = promauto.With(am.Registry).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "pd_assistant",
+			Name:      "all_ips_count",
+			Help:      "List of all IP addresses from all PD Assistants",
+		},
+		[]string{},
+	)
+
+	am.LocalIPs = promauto.With(am.Registry).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "pd_assistant",
+			Name:      "local_ips_count",
+			Help:      "List of IP addresses from Cilium nodes",
+		},
+		[]string{},
+	)
+
 	am.CertUpdateErrors = promauto.With(am.Registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "pd_assistant",
@@ -39,6 +60,15 @@ func InitMetrics(version string) AppMetrics {
 			Help:      "Total number of certificate update errors",
 		},
 		[]string{},
+	)
+
+	am.PDAssistantFetchErrors = promauto.With(am.Registry).NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "pd_assistant",
+			Name:      "fetch_errors_total",
+			Help:      "Total number of errors fetching data from PD Assistants",
+		},
+		[]string{"pd_assistant"},
 	)
 
 	am.Config.WithLabelValues(version).Set(1)

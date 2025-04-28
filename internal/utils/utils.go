@@ -3,16 +3,19 @@ package utils
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
 
 // MakeHTTPRequest makes an HTTP(S) request to the specified URL.
 // It returns the HTTP response or an error if the request fails.
-func MakeHTTPRequest(url, certPath, keyPath, caPath string, insecure bool, timeout int) (*http.Response, error) {
+func MakeHTTPRequest(url, certPath, keyPath, caPath string, insecure bool, timeout int, bearerToken string) (*http.Response, error) {
 	var client *http.Client
 	var tlsConfig *tls.Config
 	var cert tls.Certificate
@@ -66,8 +69,19 @@ func MakeHTTPRequest(url, certPath, keyPath, caPath string, insecure bool, timeo
 		}
 	}
 
+	// Create the HTTP request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not create HTTP request: %v", err)
+	}
+
+	// Add the bearer token to the Authorization header if provided
+	if bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+
 	// Make the HTTP or HTTPS request
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("could not make HTTP(S) request: %v", err)
 	}
@@ -102,4 +116,25 @@ func Contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// ParseJSONResponse parses a JSON response body into the provided target interface.
+func ParseJSONResponse(body io.Reader, target interface{}) error {
+	decoder := json.NewDecoder(body)
+	return decoder.Decode(target)
+}
+
+// IPListsEqual checks if two slices of IPs are equal (uses sort to ensure order doesn't matter).
+func IPListsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	slices.Sort(a)
+	slices.Sort(b)
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

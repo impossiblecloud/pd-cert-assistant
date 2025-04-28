@@ -4,12 +4,19 @@ package cfg
 type AppConfig struct {
 	// PDAddress is the address of the PD server.
 	PDAddress string
-	// PDAssistantHostPrefix is the host prefix for PD Assistant instances.
-	PDAssistantHostPrefix string
 	// BearerToken is the token used for authentication
 	BearerToken string
 	// CertificateName is the name of the certificate to be used.
 	CertificateName string
+	// CertificateNamespace is the namespace where the certificate is stored.
+	CertificateNamespace string
+
+	// PD Assistants host parameters
+	PDAssistantAddresses   []string
+	PDAssistantHostPrefix  string
+	PDAssistantScheme      string
+	PDAssistantPort        string
+	PDAssistantTLSInsecure bool
 
 	// TLS Parameters
 	TLSCertPath string
