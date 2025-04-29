@@ -1,0 +1,23 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: example-certificate
+  namespace: default
+spec:
+  commonName: tidb-cluster
+  dnsNames:
+  - localhost
+  - tidb-cluster-tidb
+  - tidb-cluster-tidb.tidb-test
+  - tidb-cluster-tidb.tidb-test.svc
+  ipAddresses:
+  - 10.0.0.1
+  - 10.0.0.2
+  - 10.0.0.3
+  - 10.0.0.4
+  - 10.0.0.5
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-ca-issuer
+  secretName: example-certificate-secret
+
