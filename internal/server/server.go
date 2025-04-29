@@ -124,8 +124,8 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		time.Sleep(time.Duration(conf.PDAssistantPollInterval) * time.Second)
 
 		// Do stuff
-		pdaAddresses := conf.PDAssistantAddresses
-		if len(conf.PDAssistantAddresses) == 0 {
+		pdaAddresses := conf.PDAssistantURLs
+		if len(conf.PDAssistantURLs) == 0 {
 			// If no pd-assistant addresses are provided, fetch them from the PD server
 			var err error
 			pdaAddresses, err = tidb.GetPDAssistantURLs(conf)

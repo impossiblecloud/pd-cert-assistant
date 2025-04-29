@@ -19,7 +19,7 @@ type AppConfig struct {
 	Certificate cmapi.Certificate
 
 	// PD Assistants host parameters
-	PDAssistantAddresses   []string
+	PDAssistantURLs        []string
 	PDAssistantHostPrefix  string
 	PDAssistantScheme      string
 	PDAssistantPort        string
@@ -66,10 +66,10 @@ func Create() AppConfig {
 }
 
 // Update updates the AppConfig instance with values from command line arguments and environment variables.
-func (c *AppConfig) Update(pdAssistantAddresses, certPath string) error {
+func (c *AppConfig) Update(pdAssistantURLs, certPath string) error {
 	// Update config based on command line arguments
-	if pdAssistantAddresses != "" {
-		c.PDAssistantAddresses = utils.ParseCommaSeparatedLine(pdAssistantAddresses)
+	if pdAssistantURLs != "" {
+		c.PDAssistantURLs = utils.ParseCommaSeparatedLine(pdAssistantURLs)
 	}
 
 	// Update config with environment variables
