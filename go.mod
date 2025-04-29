@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/cert-manager/cert-manager v1.17.2
-	github.com/golang/glog v1.2.4
+	github.com/golang/glog v1.2.5
 	github.com/gorilla/mux v1.8.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.10.0

@@ -16,7 +16,6 @@ jobs:
     # Set job outputs to values from changes step
     outputs:
       go: ${{ steps.changes.outputs.go }}
-      image: ${{ steps.changes.outputs.image }}
       markdown: ${{ steps.changes.outputs.markdown }}
     steps:
       - uses: dorny/paths-filter@v3
@@ -27,12 +26,6 @@ jobs:
               - 'go.*'
               - '*.go'
               - 'internal/**'
-            image:
-              - 'go.*'
-              - '*.go'
-              - 'internal/**'
-              - 'Dockerfile'
-              - 'Makefile'
             markdown:
               - '**/*.md'
               - '.github/**/*.md'
@@ -41,14 +34,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.go == 'true' }}
     uses: ./.github/workflows/go-test.yaml
-
-  image:
-    needs: changes
-    if: ${{ needs.changes.outputs.image == 'true' }}
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/build-images.yaml
 
   markdown:
     needs: changes
