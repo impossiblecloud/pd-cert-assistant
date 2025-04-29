@@ -151,8 +151,8 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		// Atomic update of AllIPAddresses in the state, only if all IPs are fetched successfully
 		s.AllIPAddresses = allIPAddresses
 		s.Metrics.AllIPs.WithLabelValues().Set(float64(len(allIPAddresses)))
-		glog.V(4).Infof("Updated All IPs to: %+v", s.AllIPAddresses)
-		glog.V(6).Infof("Checking for certificate updates, certificate name: %s", conf.CertificateName)
+		glog.V(4).Infof("All IPs fetched from pd-assistants: %+v", s.AllIPAddresses)
+		glog.V(6).Info("Checking for certificate updates")
 
 		// Update the certificate with the new IPs if needed
 		err = kc.UpdateCertificate(conf, allIPAddresses)

@@ -12,14 +12,13 @@ import (
 	"github.com/impossiblecloud/pd-cert-assistant/internal/metrics"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/server"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/tidb"
-	"github.com/impossiblecloud/pd-cert-assistant/internal/utils"
 )
 
 // Constants
 var Version string
 
 func main() {
-	var listen, kubeconfig, pdAssistantAddresses string
+	var listen, kubeconfig, pdAssistantAddresses, certFilePath string
 	var showVersion bool
 
 	if Version == "" {
@@ -27,8 +26,7 @@ func main() {
 	}
 
 	// Init config
-	config := cfg.AppConfig{}
-	config.HTTPRequestTimeout = 5 // seconds
+	config := cfg.Create()
 
 	// Init state
 	srv := server.State{}
@@ -50,19 +48,13 @@ func main() {
 	flag.StringVar(&config.PDAssistantScheme, "pd-assistant-scheme", "https", "Scheme for PD Assistant instances (http or https)")
 	flag.StringVar(&config.PDAssistantPort, "pd-assistant-port", "443", "Port for PD Assistant instances")
 	flag.StringVar(&pdAssistantAddresses, "pd-assistant-addresses", "", "List of PD Assistant addresses (comma-separated). Overrides --pd-assistant-host-prefix and ignored --pd-address if provided")
-	flag.StringVar(&config.CertificateName, "cert-name", "pd-assistant", "Name of the certificate to be used")
-	flag.StringVar(&config.CertificateNamespace, "cert-namespace", "default", "Namespace where the certificate is stored")
+	flag.StringVar(&certFilePath, "certificate-file", "/app/conf/", "Path to a Certificate YAML file to be used as a template")
 	flag.BoolVar(&config.PDAssistantTLSInsecure, "pd-assistant-tls-insecure", false, "Skip TLS verification for PD Assistant instances (not recommended)")
-
 	flag.Parse()
 
-	// Update config based on command line arguments
-	if pdAssistantAddresses != "" {
-		config.PDAssistantAddresses = utils.ParseCommaSeparatedLine(pdAssistantAddresses)
-	}
-	config.BearerToken = os.Getenv("BEARER_TOKEN")
-	if config.BearerToken == "" {
-		glog.Fatal("BEARER_TOKEN environment variable is not set")
+	// Update config
+	if err := config.Update(pdAssistantAddresses, certFilePath); err != nil {
+		glog.Fatalf("Failed to update config: %v", err)
 	}
 
 	// Show and exit functions
@@ -81,6 +73,7 @@ func main() {
 	// Log some useful information
 	glog.V(4).Infof("Starting application. Version: %s", Version)
 	glog.V(4).Infof("PD Address: %s", config.PDAddress)
+	glog.V(4).Infof("Loaded certificate YAML file %q: name=%s, namespace=%s", certFilePath, config.Certificate.Name, config.Certificate.Namespace)
 	glog.V(4).Infof("TLS Config - Cert: %s, Key: %s, CA: %s", config.TLSCertPath, config.TLSKeyPath, config.TLSCAPath)
 
 	// Test things

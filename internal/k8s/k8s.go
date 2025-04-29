@@ -3,7 +3,10 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"time"
 
+	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/golang/glog"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/cfg"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/utils"
@@ -13,10 +16,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 )
 
 type Client struct {
@@ -31,6 +30,16 @@ func loadKubeConfig(path string) (*rest.Config, error) {
 	// Just in case we decide to do some overrides in the future
 	override := &clientcmd.ConfigOverrides{}
 	return clientcmd.NewDefaultClientConfig(*file, override).ClientConfig()
+}
+
+func injectAnnotations(certificate cmapi.Certificate) map[string]string {
+	annotations := certificate.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["managed-by"] = "pd-assistant"
+	annotations["last-updated"] = time.Now().Format("2006-01-02 15:04:05")
+	return annotations
 }
 
 func (c *Client) Init(kubeConfigPath string) error {
@@ -96,52 +105,45 @@ func (c *Client) GetCiliumNodes() ([]string, error) {
 	return internalIPs, nil
 }
 
+// UpdateCertificate updates the certificate in Kubernetes with the provided IP addresses.
 func (c *Client) UpdateCertificate(conf cfg.AppConfig, IPs []string) error {
 	client, err := cmclient.NewForConfig(c.Config)
 	if err != nil {
 		return err
 	}
-	certificate, err := client.CertmanagerV1().Certificates(conf.CertificateNamespace).Get(context.TODO(), conf.CertificateName, metav1.GetOptions{})
+
+	// Override IP addresses from the configuration
+	conf.Certificate.Spec.IPAddresses = IPs
+	conf.Certificate.SetAnnotations(injectAnnotations(conf.Certificate))
+
+	certificate, err := client.CertmanagerV1().Certificates(conf.Certificate.Namespace).Get(context.TODO(), conf.Certificate.Name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			glog.Info("Certificate %s/%s not found, creating a new one", conf.CertificateNamespace, conf.CertificateName)
-			// TODO: read certificate from YAML file and then override the IPs
-			newCert := &cmapi.Certificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      conf.CertificateName,
-					Namespace: conf.CertificateNamespace,
-				},
-				Spec: cmapi.CertificateSpec{
-					SecretName: conf.CertificateName,
-					IssuerRef: cmmeta.ObjectReference{
-						Name: "tidb-cluster-selfsigned-ca-issuer",
-						Kind: "Issuer",
-					},
-					IPAddresses: IPs,
-				},
-			}
-			_, err = client.CertmanagerV1().Certificates(conf.CertificateNamespace).Create(context.TODO(), newCert, metav1.CreateOptions{})
+			glog.Infof("Certificate %s/%s not found, creating a new one", conf.Certificate.Namespace, conf.Certificate.Name)
+			_, err = client.CertmanagerV1().Certificates(conf.Certificate.Namespace).Create(context.TODO(), &conf.Certificate, metav1.CreateOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to create certificate %s/%s: %s", conf.CertificateNamespace, conf.CertificateName, err.Error())
+				return fmt.Errorf("failed to create certificate %s/%s: %s", conf.Certificate.Namespace, conf.Certificate.Name, err.Error())
 			}
-			glog.Infof("Certificate %s/%s created successfully", conf.CertificateNamespace, conf.CertificateName)
+			glog.Infof("Certificate %s/%s created successfully", conf.Certificate.Namespace, conf.Certificate.Name)
 			return nil
 		}
-		return fmt.Errorf("failed to get certificate %s/%s: %s", certificate.Namespace, conf.CertificateName, err.Error())
+		return fmt.Errorf("failed to get certificate %s/%s: %s", certificate.Namespace, conf.Certificate.Name, err.Error())
 	}
 
 	// Check if the IPs are already set and are the same as the current ones
 	if utils.IPListsEqual(certificate.Spec.IPAddresses, IPs) {
-		glog.V(6).Infof("Certificate %s/%s already has the same IPs, no update needed", conf.CertificateNamespace, conf.CertificateName)
+		glog.V(6).Infof("Certificate %s/%s already has the same IPs, no update needed", conf.Certificate.Namespace, conf.Certificate.Name)
 		return nil
 	}
 
-	glog.V(6).Infof("Certificate %s/%s found, updating IPs: %v", conf.CertificateNamespace, conf.CertificateName, IPs)
+	// Update Certificate IPs and some annotations
+	glog.V(6).Infof("Certificate %s/%s found, updating IPs: %v", conf.Certificate.Namespace, conf.Certificate.Name, IPs)
 	certificate.Spec.IPAddresses = IPs
-	_, err = client.CertmanagerV1().Certificates(conf.CertificateNamespace).Update(context.TODO(), certificate, metav1.UpdateOptions{})
+	certificate.SetAnnotations(injectAnnotations(*certificate))
+	_, err = client.CertmanagerV1().Certificates(conf.Certificate.Namespace).Update(context.TODO(), certificate, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to update certificate %s/%s: %s", conf.CertificateNamespace, conf.CertificateName, err.Error())
+		return fmt.Errorf("failed to update certificate %s/%s: %s", conf.Certificate.Namespace, conf.Certificate.Name, err.Error())
 	}
-	glog.Infof("Certificate %s/%s updated successfully", conf.CertificateNamespace, conf.CertificateName)
+	glog.Infof("Certificate %s/%s updated successfully", conf.Certificate.Namespace, conf.Certificate.Name)
 	return nil
 }
