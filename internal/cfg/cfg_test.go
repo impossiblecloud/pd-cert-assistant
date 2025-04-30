@@ -29,3 +29,31 @@ func TestLoadCertificateYaml(t *testing.T) {
 		t.Errorf("expected secret name 'example-certificate-secret', got '%s'", cert.Spec.SecretName)
 	}
 }
+func TestCreate(t *testing.T) {
+	config := Create()
+
+	// Check default HTTPRequestTimeout
+	if config.HTTPRequestTimeout != 5 {
+		t.Errorf("expected HTTPRequestTimeout to be 5, got %d", config.HTTPRequestTimeout)
+	}
+
+	// Check PDConfig HTTPRequestTimeout
+	if config.PDConfig.HTTPRequestTimeout != 5 {
+		t.Errorf("expected PDConfig.HTTPRequestTimeout to be 5, got %d", config.PDConfig.HTTPRequestTimeout)
+	}
+
+	// Check PDDiscoveryConfig HTTPRequestTimeout
+	if config.PDDiscoveryConfig.HTTPRequestTimeout != 5 {
+		t.Errorf("expected PDDiscoveryConfig.HTTPRequestTimeout to be 5, got %d", config.PDDiscoveryConfig.HTTPRequestTimeout)
+	}
+
+	// Check if PDConfig is initialized
+	if config.PDConfig == (PDConfig{}) {
+		t.Errorf("expected PDConfig to be initialized, got an empty struct")
+	}
+
+	// Check if PDDiscoveryConfig is initialized
+	if config.PDDiscoveryConfig == (PDDiscoveryConfig{}) {
+		t.Errorf("expected PDDiscoveryConfig to be initialized, got an empty struct")
+	}
+}

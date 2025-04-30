@@ -1,26 +1,37 @@
 package tidb
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
+
+	"github.com/golang/glog"
 
 	"github.com/impossiblecloud/pd-cert-assistant/internal/cfg"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/utils"
 )
 
+func encodePDDiscoveryPath(conf cfg.PDDiscoveryConfig) string {
+	domain := fmt.Sprintf("%s-pd-0.%s-pd-peer.%s.svc:2380", conf.TiDBCLusterName, conf.TiDBCLusterName, conf.TiDBCLusterNameSpace)
+	encoded := base64.StdEncoding.EncodeToString([]byte(domain))
+	return strings.ReplaceAll(encoded, "\n", "")
+}
+
 // PDGetMemberNames fetches a list of members from a PD server and returns their names.
-func PDGetMemberNames(conf cfg.AppConfig) ([]string, error) {
+func PDGetMemberNames(conf cfg.PDConfig) ([]string, error) {
 	pdScheme := "http://"
-	if conf.TLSCAPath != "" {
+	if conf.TLSConfig.CAPath != "" {
 		pdScheme = "https://"
 	}
-	pdAddress := pdScheme + conf.PDAddress + "/pd/api/v1/members"
-	resp, err := utils.MakeHTTPRequest(pdAddress, conf.TLSCertPath, conf.TLSKeyPath, conf.TLSCAPath, conf.TLSInsecure, conf.HTTPRequestTimeout, "")
+	pdAddress := pdScheme + conf.Address + "/pd/api/v1/members"
+	resp, err := utils.MakeHTTPRequest(pdAddress, conf.TLSConfig.CertPath, conf.TLSConfig.KeyPath, conf.TLSConfig.CAPath, conf.TLSConfig.Insecure, conf.HTTPRequestTimeout, "")
 	// Check if the request was successful
 	if err != nil {
-		return nil, fmt.Errorf("failed to make HTTPS request: %v", err)
+		return nil, fmt.Errorf("failed to make HTTP request to %q: %v", pdAddress, err)
 	}
 	defer resp.Body.Close()
 
@@ -55,6 +66,44 @@ func PDGetMemberNames(conf cfg.AppConfig) ([]string, error) {
 	return names, nil
 }
 
+// PDDiscoveryGetMemberNames fetches a list of members from a PD discovery service and returns their names.
+func PDDiscoveryGetMemberNames(conf cfg.PDDiscoveryConfig) ([]string, error) {
+	pdDiscoveryPath := encodePDDiscoveryPath(conf)
+	pdDiscoveryURL := fmt.Sprintf("%s/new/%s", conf.URL, pdDiscoveryPath)
+	resp, err := utils.MakeHTTPRequest(pdDiscoveryURL, conf.TLSConfig.CertPath, conf.TLSConfig.KeyPath, conf.TLSConfig.CAPath, conf.TLSConfig.Insecure, conf.HTTPRequestTimeout, "")
+	// Check if the request was successful
+	if err != nil {
+		return nil, fmt.Errorf("failed to make HTTP request to %q: %v", pdDiscoveryURL, err)
+	}
+	defer resp.Body.Close()
+
+	// Check if the response status is OK
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received non-OK HTTP status from %q: %s", pdDiscoveryURL, resp.Status)
+	}
+
+	// Convert response body to string
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+	bodyString := string(bodyBytes)
+	glog.V(8).Infof("PD Discovery Response body: %s", bodyString)
+
+	hosts := []string{}
+	for _, url := range utils.FindUniqueURLs(bodyString) {
+		glog.V(8).Infof("Found PD URL: %s", url)
+		host := utils.GetHostFromURL(url)
+		if host == "" {
+			continue
+		}
+		if !utils.Contains(hosts, host) {
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts, nil
+}
+
 // GetUniqueDomains extracts unique domains from a list of hosts.
 func GetUniqueDomains(hosts []string) []string {
 	var result []string
@@ -82,7 +131,27 @@ func BuildPDAssistantHostnames(conf cfg.AppConfig, hosts []string) []string {
 
 // GetPDAssistantURLs retrieves PD Assistant hostnames based on the PD member names and generates a list of URLs.
 func GetPDAssistantURLs(conf cfg.AppConfig) ([]string, error) {
-	pdNames, err := PDGetMemberNames(conf)
+	pdNames, err := PDDiscoveryGetMemberNames(conf.PDDiscoveryConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PD member names: %v", err)
+	}
+
+	pdAssistantHosts := BuildPDAssistantHostnames(conf, pdNames)
+	if len(pdAssistantHosts) == 0 {
+		return nil, errors.New("no PD Assistant hostnames found")
+	}
+
+	pdAssistanURLs := []string{}
+	for _, host := range pdAssistantHosts {
+		pdAssistanURLs = append(pdAssistanURLs, fmt.Sprintf("%s://%s:%s", conf.PDAssistantScheme, host, conf.PDAssistantPort))
+	}
+
+	return pdAssistanURLs, nil
+}
+
+// GetPDDAssistantURLs retrieves PD Assistant hostnames based on the PD member names from discovery service and generates a list of URLs.
+func GetPDDiscoveryAssistantURLs(conf cfg.AppConfig) ([]string, error) {
+	pdNames, err := PDDiscoveryGetMemberNames(conf.PDDiscoveryConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PD member names: %v", err)
 	}

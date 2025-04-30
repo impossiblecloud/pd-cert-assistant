@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -108,6 +109,20 @@ func GetDomainFromHost(host string) string {
 	return strings.Join(parts[1:], ".")
 }
 
+// GetHostFromURL extracts the host from a given URL string.
+func GetHostFromURL(url string) string {
+	// Remove the scheme (http:// or https://) if present
+	if strings.HasPrefix(url, "http://") {
+		url = strings.TrimPrefix(url, "http://")
+	} else if strings.HasPrefix(url, "https://") {
+		url = strings.TrimPrefix(url, "https://")
+	}
+
+	// Split the URL by slashes and port and then return the first part as the host
+	parts := strings.Split(strings.Split(url, "/")[0], ":")
+	return parts[0]
+}
+
 // Contains checks if a slice contains a specific string.
 func Contains(slice []string, item string) bool {
 	for _, v := range slice {
@@ -137,4 +152,26 @@ func IPListsEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// FindUniqueURLs extracts unique URLs from a given text.
+func FindUniqueURLs(text string) []string {
+	// Use regex to find all URLs in the text
+	urlRegex := `https?://[a-zA-Z0-9.-:-]+`
+	re := regexp.MustCompile(urlRegex)
+	matches := re.FindAllString(text, -1)
+
+	// Use a map to store unique URLs
+	uniqueURLs := make(map[string]struct{})
+	for _, url := range matches {
+		uniqueURLs[url] = struct{}{}
+	}
+
+	// Convert map keys to a slice
+	var result []string
+	for url := range uniqueURLs {
+		result = append(result, url)
+	}
+
+	return result
 }

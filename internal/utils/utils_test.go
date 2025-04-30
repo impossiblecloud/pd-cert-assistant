@@ -150,3 +150,100 @@ func TestIPListsEqual(t *testing.T) {
 		}
 	}
 }
+
+// TestFindUniqueURLs tests the FindUniqueURLs function.
+func TestFindUniqueURLs(t *testing.T) {
+	tests := []struct {
+		text     string
+		expected []string
+	}{
+		{
+			text:     "http://example.com\nhttps://example.org\nhttp://example.com",
+			expected: []string{"http://example.com", "https://example.org"},
+		},
+		{
+			text:     "Visit http://example-1.com and https://example-2.org for more info.",
+			expected: []string{"http://example-1.com", "https://example-2.org"},
+		},
+		{
+			text:     "No URLs here.",
+			expected: []string{},
+		},
+		{
+			text:     "",
+			expected: []string{},
+		},
+		{
+			text: "--join=https://tidb-cluster-pd-1.tidb-cluster-pd-peer.tidb-regional.svc.de-fra002.mydomain.com:2379,https://tidb-cluster-pd-1.tidb-cluster-pd-peer.tidb-regional.svc.de-fra001.mydomain.com:2379,https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-regional.svc.de-fra002.mydomain.com:2379,https://eu-central-2-pd-0.eu-central-2-pd-peer.tidb-regional.svc.nl-ams001.mydomain.com:2379,https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-regional.svc.de-fra001.mydomain.com:2379",
+			expected: []string{
+				"https://tidb-cluster-pd-1.tidb-cluster-pd-peer.tidb-regional.svc.de-fra002.mydomain.com:2379",
+				"https://tidb-cluster-pd-1.tidb-cluster-pd-peer.tidb-regional.svc.de-fra001.mydomain.com:2379",
+				"https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-regional.svc.de-fra002.mydomain.com:2379",
+				"https://eu-central-2-pd-0.eu-central-2-pd-peer.tidb-regional.svc.nl-ams001.mydomain.com:2379",
+				"https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-regional.svc.de-fra001.mydomain.com:2379",
+			},
+		},
+		{
+			text:     "--initial-cluster=tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-test.svc=https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-test.svc:2380",
+			expected: []string{"https://tidb-cluster-pd-0.tidb-cluster-pd-peer.tidb-test.svc:2380"},
+		},
+		{
+			text: "--initial-cluster infra0=http://10.0.1.10:2380,infra1=http://10.0.1.11:2380,infra2=http://10.0.1.12:2380",
+			expected: []string{
+				"http://10.0.1.10:2380",
+				"http://10.0.1.11:2380",
+				"http://10.0.1.12:2380",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := FindUniqueURLs(test.text)
+		if len(result) != len(test.expected) {
+			t.Errorf("For text %q, expected %v, got %v", test.text, test.expected, result)
+		}
+		for _, url := range test.expected {
+			found := false
+			for _, resURL := range result {
+				if url == resURL {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Expected URL %q not found in result %v", url, result)
+			}
+		}
+	}
+}
+
+// TestGetHostFromURL tests the GetHostFromURL function.
+func TestGetHostFromURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected string
+	}{
+		{"http://example.com", "example.com"},
+		{"https://example.com", "example.com"},
+		{"http://example.com:8080", "example.com"},
+		{"https://example.com:443", "example.com"},
+		{"http://example.com/path/to/resource", "example.com"},
+		{"https://example.com:8080/path/to/resource", "example.com"},
+		{"example.com", "example.com"},
+		{"example.com:8080", "example.com"},
+		{"http://localhost", "localhost"},
+		{"https://localhost:8443", "localhost"},
+		{"http://127.0.0.1", "127.0.0.1"},
+		{"https://127.0.0.1:8080", "127.0.0.1"},
+		{"", ""},
+		{"http://", ""},
+		{"https://", ""},
+	}
+
+	for _, test := range tests {
+		result := GetHostFromURL(test.url)
+		if result != test.expected {
+			t.Errorf("For URL %q, expected %q, got %q", test.url, test.expected, result)
+		}
+	}
+}
