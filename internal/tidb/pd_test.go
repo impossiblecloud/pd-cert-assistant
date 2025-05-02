@@ -27,12 +27,14 @@ func TestPDGetMemberNames(t *testing.T) {
 	defer server.Close()
 
 	// Create a mock configuration
-	conf := cfg.AppConfig{
-		PDAddress:          server.URL[len("http://"):], // Remove "http://" prefix
-		TLSCertPath:        "",
-		TLSKeyPath:         "",
-		TLSCAPath:          "",
-		TLSInsecure:        false,
+	conf := cfg.PDConfig{
+		Address: server.URL[len("http://"):], // Remove "http://" prefix
+		TLSConfig: cfg.TLSConfig{
+			CertPath: "",
+			KeyPath:  "",
+			CAPath:   "",
+			Insecure: false,
+		},
 		HTTPRequestTimeout: 5,
 	}
 

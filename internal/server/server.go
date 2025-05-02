@@ -109,7 +109,7 @@ func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 		} else {
 			s.IPAddresses = ciliumNodeIPs
 			s.Metrics.LocalIPs.WithLabelValues().Set(float64(len(ciliumNodeIPs)))
-			glog.V(6).Infof("Updated State IPs to: %+v", ciliumNodeIPs)
+			glog.V(6).Infof("Updated state with local IPs to: %+v", ciliumNodeIPs)
 		}
 
 		// Sleep for a while before the next iteration
@@ -124,9 +124,9 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		time.Sleep(time.Duration(conf.PDAssistantPollInterval) * time.Second)
 
 		// Do stuff
-		pdaAddresses := conf.PDAssistantAddresses
-		if len(conf.PDAssistantAddresses) == 0 {
-			// If no pd-assistant addresses are provided, fetch them from the PD server
+		pdaAddresses := conf.PDAssistantURLs
+		if len(conf.PDAssistantURLs) == 0 {
+			// If no pd-assistant addresses are provided, fetch them from the PD Discovery service
 			var err error
 			pdaAddresses, err = tidb.GetPDAssistantURLs(conf)
 			if err != nil {

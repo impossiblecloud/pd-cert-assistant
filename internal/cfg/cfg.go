@@ -9,27 +9,47 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// TLSConfig holds the TLS configuration parameters.
+type TLSConfig struct {
+	CertPath string
+	KeyPath  string
+	CAPath   string
+	Insecure bool
+}
+
+// PDConfig holds the configuration parameters for the PD endpoint.
+type PDConfig struct {
+	Address            string
+	TLSConfig          TLSConfig
+	HTTPRequestTimeout int
+}
+
+// PDDiscoveryConfig holds the configuration parameters for the PD Discovery endpoint.
+type PDDiscoveryConfig struct {
+	URL                  string
+	TLSConfig            TLSConfig
+	HTTPRequestTimeout   int
+	TiDBCLusterName      string
+	TiDBCLusterNameSpace string
+}
+
 // AppConfig is the main configuration structure for the application.
 type AppConfig struct {
-	// PDAddress is the address of the PD server.
-	PDAddress string
+	// PDConfig for pulling data from PD instance.
+	PDConfig PDConfig
+	// PDDiscoveryConfig is the URL for PD discovery service.
+	PDDiscoveryConfig PDDiscoveryConfig
 	// BearerToken is the token used for authentication
 	BearerToken string
 	// CertificateFilePath is the path to the certificate file.
 	Certificate cmapi.Certificate
 
 	// PD Assistants host parameters
-	PDAssistantAddresses   []string
+	PDAssistantURLs        []string
 	PDAssistantHostPrefix  string
 	PDAssistantScheme      string
 	PDAssistantPort        string
 	PDAssistantTLSInsecure bool
-
-	// TLS Parameters
-	TLSCertPath string
-	TLSKeyPath  string
-	TLSCAPath   string
-	TLSInsecure bool
 
 	// HTTPRequestTimeout is the timeout for HTTP requests in seconds.
 	HTTPRequestTimeout int
@@ -61,15 +81,20 @@ func LoadCertificateYaml(certificateFilePath string) (cmapi.Certificate, error) 
 // Create returns a new AppConfig instance with default values.
 func Create() AppConfig {
 	config := AppConfig{}
-	config.HTTPRequestTimeout = 5 // seconds
+	config.PDConfig = PDConfig{}
+	config.PDDiscoveryConfig = PDDiscoveryConfig{}
+	// TODO: make timeouts configurable
+	config.HTTPRequestTimeout = 5                   // seconds
+	config.PDConfig.HTTPRequestTimeout = 5          // seconds
+	config.PDDiscoveryConfig.HTTPRequestTimeout = 5 // seconds
 	return config
 }
 
 // Update updates the AppConfig instance with values from command line arguments and environment variables.
-func (c *AppConfig) Update(pdAssistantAddresses, certPath string) error {
+func (c *AppConfig) Update(pdAssistantURLs, certPath string) error {
 	// Update config based on command line arguments
-	if pdAssistantAddresses != "" {
-		c.PDAssistantAddresses = utils.ParseCommaSeparatedLine(pdAssistantAddresses)
+	if pdAssistantURLs != "" {
+		c.PDAssistantURLs = utils.ParseCommaSeparatedLine(pdAssistantURLs)
 	}
 
 	// Update config with environment variables
@@ -85,5 +110,19 @@ func (c *AppConfig) Update(pdAssistantAddresses, certPath string) error {
 	}
 	c.Certificate = newCert
 
+	return nil
+}
+
+// Validate checks if the AppConfig instance has valid values.
+func (c *AppConfig) Validate() error {
+	if c.PDDiscoveryConfig.URL != "" {
+		// In this case we require tidb cluster name and namespace
+		if c.PDDiscoveryConfig.TiDBCLusterName == "" {
+			return fmt.Errorf("PD discovery service requires a TiDB cluster name")
+		}
+		if c.PDDiscoveryConfig.TiDBCLusterNameSpace == "" {
+			return fmt.Errorf("PD discovery service requires a TiDB cluster namespace")
+		}
+	}
 	return nil
 }
