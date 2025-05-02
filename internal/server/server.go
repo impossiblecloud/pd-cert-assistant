@@ -145,6 +145,7 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		// Failsafe check for empty IPs, we should never have empty IPs
 		if len(allIPAddresses) == 0 {
 			glog.Errorf("No IPs found in pd-assistants")
+			// It's unsafe to continue if we found no IPs, so we log the error and skip this iteration
 			continue
 		}
 
