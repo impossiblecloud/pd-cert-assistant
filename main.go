@@ -54,15 +54,15 @@ func main() {
 	flag.StringVar(&config.PDDiscoveryConfig.TiDBCLusterNameSpace, "pd-discovery-tidb-cluster-namespace", "", "TiDB cluster namespace for PD Discovery service")
 	flag.Parse()
 
-	// Update config
-	if err := config.Update(pdAssistantURLs, certFilePath); err != nil {
-		glog.Fatalf("Failed to update config: %v", err)
-	}
-
 	// Show and exit functions
 	if showVersion {
 		fmt.Printf("Version: %s\n", Version)
 		os.Exit(0)
+	}
+
+	// Update config
+	if err := config.Update(pdAssistantURLs, certFilePath); err != nil {
+		glog.Fatalf("Failed to update config: %v", err)
 	}
 
 	// Validate config

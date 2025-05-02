@@ -8,6 +8,7 @@ ENV GOPATH=/go
 ENV PATH="$PATH:$GOPATH/bin"
 COPY Makefile Makefile
 COPY *.go ./
+COPY .git .git
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY internal/ internal/
