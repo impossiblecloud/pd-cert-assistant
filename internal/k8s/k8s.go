@@ -38,7 +38,7 @@ func injectAnnotations(certificate cmapi.Certificate) map[string]string {
 		annotations = make(map[string]string)
 	}
 	annotations["managed-by"] = "pd-assistant"
-	annotations["last-updated"] = time.Now().Format("2006-01-02 15:04:05")
+	annotations["last-updated"] = time.Now().UTC().Format(time.RFC3339)
 	return annotations
 }
 

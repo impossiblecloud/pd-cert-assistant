@@ -19,7 +19,7 @@ func TestInjectAnnotationsWithNoAnnotation(t *testing.T) {
 	assert.NotEmpty(t, annotations["last-updated"], "Annotation 'last-updated' should not be empty")
 
 	// Check if 'last-updated' is a valid timestamp
-	_, err := time.Parse("2006-01-02 15:04:05", annotations["last-updated"])
+	_, err := time.Parse(time.RFC3339, annotations["last-updated"])
 	assert.NoError(t, err, "Annotation 'last-updated' should be a valid timestamp")
 
 	// Mock certificate with existing annotations
@@ -53,7 +53,7 @@ func TestInjectAnnotationsWithAnnotation(t *testing.T) {
 	assert.Equal(t, "existing-value", annotations["existing-key"], "Existing annotations should be preserved")
 
 	// Check if 'last-updated' is a valid timestamp
-	_, err := time.Parse("2006-01-02 15:04:05", annotations["last-updated"])
+	_, err := time.Parse(time.RFC3339, annotations["last-updated"])
 	assert.NoError(t, err, "Annotation 'last-updated' should be a valid timestamp")
 
 	// Mock certificate with existing annotations
