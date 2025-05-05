@@ -25,6 +25,9 @@ func TestLoadCertificateYaml(t *testing.T) {
 	if len(cert.Spec.DNSNames) != 4 {
 		t.Errorf("expected 4 DNS names, got %d", len(cert.Spec.DNSNames))
 	}
+	if len(cert.Spec.IPAddresses) != 5 {
+		t.Errorf("expected 5 IP addresses, got %d", len(cert.Spec.IPAddresses))
+	}
 	if cert.Spec.SecretName != "example-certificate-secret" {
 		t.Errorf("expected secret name 'example-certificate-secret', got '%s'", cert.Spec.SecretName)
 	}

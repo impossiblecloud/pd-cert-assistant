@@ -50,6 +50,7 @@ type AppConfig struct {
 	PDAssistantScheme      string
 	PDAssistantPort        string
 	PDAssistantTLSInsecure bool
+	PDAssistantConsensus   bool
 
 	// HTTPRequestTimeout is the timeout for HTTP requests in seconds.
 	HTTPRequestTimeout int

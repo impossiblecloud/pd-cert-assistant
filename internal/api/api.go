@@ -8,14 +8,13 @@ import (
 )
 
 const (
-	ApiIPsPath = "/api/v1/ips"
+	ApiIPsPath    = "/api/v1/ips"
+	ApiAllIPsPath = "/api/v1/allips"
 )
 
 // For now we don't really have any API, just parsing JSON response with []string data in it.
-
-// GetIPs fetches the IP addresses from the PD Assistant instances.
-func GetIPs(conf cfg.AppConfig, pdaAddress string) ([]string, error) {
-	fullAddress := pdaAddress + ApiIPsPath
+func getIPs(conf cfg.AppConfig, pdaAddress, path string) ([]string, error) {
+	fullAddress := pdaAddress + path
 	resp, err := utils.MakeHTTPRequest(fullAddress, "", "", "", conf.PDAssistantTLSInsecure, conf.HTTPRequestTimeout, conf.BearerToken)
 	// Check if the request was successful
 	if err != nil {
@@ -35,4 +34,14 @@ func GetIPs(conf cfg.AppConfig, pdaAddress string) ([]string, error) {
 	}
 
 	return ips, nil
+}
+
+// GetIPs fetches local IP addresses from the PD Assistant instances.
+func GetLocalIPs(conf cfg.AppConfig, pdaAddress string) ([]string, error) {
+	return getIPs(conf, pdaAddress, ApiIPsPath)
+}
+
+// GetIAllPs fetches all IP addresses from the PD Assistant instances.
+func GetAllIPs(conf cfg.AppConfig, pdaAddress string) ([]string, error) {
+	return getIPs(conf, pdaAddress, ApiAllIPsPath)
 }

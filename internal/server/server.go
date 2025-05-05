@@ -14,6 +14,7 @@ import (
 	"github.com/impossiblecloud/pd-cert-assistant/internal/k8s"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/metrics"
 	"github.com/impossiblecloud/pd-cert-assistant/internal/tidb"
+	"github.com/impossiblecloud/pd-cert-assistant/internal/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -80,24 +81,57 @@ func authHandler(endpoint http.HandlerFunc, cfg cfg.AppConfig) http.HandlerFunc 
 
 func (s *State) getAllIPAddresses(conf cfg.AppConfig, pdaAddresses []string) ([]string, error) {
 	allIPAddresses := []string{}
+	// Iterate over pd-assistant addresses and fetch their local IPs
 	for _, pdaAddress := range pdaAddresses {
-		glog.V(6).Infof("Fetching IPs from pd-assistant: %s", pdaAddress)
-		ips, err := api.GetIPs(conf, pdaAddress)
+		glog.V(6).Infof("Fetching local IPs from pd-assistant: %s", pdaAddress)
+		ips, err := api.GetLocalIPs(conf, pdaAddress)
 		if err != nil {
-			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress).Inc()
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "local").Inc()
 			return nil, fmt.Errorf("failed to fetch IPs from pd-assistant %s: %v", pdaAddress, err)
 
 		}
 		if len(ips) == 0 {
-			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress).Inc()
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "local").Inc()
 			return nil, fmt.Errorf("no IPs found in pd-assistant %s", pdaAddress)
 		}
 
 		// Update the state with the fetched IPs
 		allIPAddresses = append(allIPAddresses, ips...)
-		glog.V(6).Infof("Fetched IPs from pd-assistant %s: %+v", pdaAddress, ips)
+		glog.V(6).Infof("Fetched local IPs from pd-assistant %s: %+v", pdaAddress, ips)
 	}
 	return allIPAddresses, nil
+}
+
+func (s *State) allIPsConsesusCheck(conf cfg.AppConfig, pdaAddresses []string) (bool, error) {
+	var sampleIPs []string
+
+	// Iterate over pd-assistant addresses, fetch all IPs they've found and compare them between each other
+	for id, pdaAddress := range pdaAddresses {
+		glog.V(6).Infof("Fetching all IPs from pd-assistant: %s", pdaAddress)
+		ips, err := api.GetAllIPs(conf, pdaAddress)
+		if err != nil {
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "all").Inc()
+			return false, fmt.Errorf("failed to fetch all IPs from pd-assistant %s: %v", pdaAddress, err)
+
+		}
+		if len(ips) == 0 {
+			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "all").Inc()
+			return false, fmt.Errorf("no all IPs found in pd-assistant %s", pdaAddress)
+		}
+		if id == 0 {
+			// Snapshot sample IPs which will be used for comparison
+			sampleIPs = ips
+		} else {
+			// Compare the fetched IPs with the sample IPs
+			if !utils.IPListsEqual(sampleIPs, ips) {
+				glog.V(0).Infof("All IPs consensus error: all IPs are not equal between pd-assistants: %s and %s", pdaAddresses[0], pdaAddress)
+				glog.V(8).Infof("Sample all IPs from %s: %+v", pdaAddresses[0], sampleIPs)
+				glog.V(8).Infof("Fetched all IPs from %s: %+v", pdaAddress, ips)
+				return false, nil
+			}
+		}
+	}
+	return true, nil
 }
 
 // IPWatchLoop continuously fetches CiliumNode IPs and updates the state
@@ -152,8 +186,22 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		// Atomic update of AllIPAddresses in the state, only if all IPs are fetched successfully
 		s.AllIPAddresses = allIPAddresses
 		s.Metrics.AllIPs.WithLabelValues().Set(float64(len(allIPAddresses)))
-		glog.V(4).Infof("All IPs fetched from pd-assistants: %+v", s.AllIPAddresses)
+		glog.V(6).Infof("All IPs fetched from pd-assistants: %+v", s.AllIPAddresses)
 		glog.V(6).Info("Checking for certificate updates")
+
+		// Check IP address consensus
+		if conf.PDAssistantConsensus {
+			if consensus, err := s.allIPsConsesusCheck(conf, pdaAddresses); err != nil {
+				s.Metrics.ConsensusErrors.WithLabelValues().Inc()
+				glog.Errorf("Failed to check IP address consensus: %v", err)
+				continue
+			} else if !consensus {
+				s.Metrics.ConsensusErrors.WithLabelValues().Inc()
+				glog.Errorf("IP address consensus check failed, skipping certificate update")
+				continue
+			}
+			glog.V(6).Info("IP address consensus check passed")
+		}
 
 		// Update the certificate with the new IPs if needed
 		err = kc.UpdateCertificate(conf, allIPAddresses)
@@ -164,16 +212,35 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 	}
 }
 
-// GetIPs handler with bearer token authentication
+// GetIPs returns local IP addresses in JSON format
 func (s *State) GetIPs(w http.ResponseWriter, r *http.Request) {
 	glog.V(10).Infof("Got HTTP request for %s", api.ApiIPsPath)
 
-	// Marshal the IP addresses to JSON
+	// Marshal local IP addresses to JSON
 	jsonResponse, err := json.Marshal(s.IPAddresses)
 	if err != nil {
 		glog.Errorf("Failed to marshal IP addresses: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, `{"error": "Failed to encode IP addresses"}`)
+		return
+	}
+
+	// Respond with the IP addresses
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResponse)
+}
+
+// GetAllIPs returns all IP addresses in JSON format
+func (s *State) GetAllIPs(w http.ResponseWriter, r *http.Request) {
+	glog.V(10).Infof("Got HTTP request for %s", api.ApiIPsPath)
+
+	// Marshal all IP addresses to JSON
+	jsonResponse, err := json.Marshal(s.AllIPAddresses)
+	if err != nil {
+		glog.Errorf("Failed to marshal all IP addresses: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `{"error": "Failed to encode all IP addresses"}`)
 		return
 	}
 
@@ -192,6 +259,7 @@ func (s *State) RunMainWebServer(config cfg.AppConfig, listen string) {
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/metrics", s.handleMetrics(config)).Methods("GET")
 	router.HandleFunc(api.ApiIPsPath, authHandler(s.GetIPs, config)).Methods("GET")
+	router.HandleFunc(api.ApiAllIPsPath, authHandler(s.GetAllIPs, config)).Methods("GET")
 	router.HandleFunc("/", rootHandler).Methods("GET")
 
 	// Run main http router
