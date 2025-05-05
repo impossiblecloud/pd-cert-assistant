@@ -18,6 +18,7 @@ type AppMetrics struct {
 	// Counters
 	CertUpdateErrors       *prometheus.CounterVec
 	PDAssistantFetchErrors *prometheus.CounterVec
+	ConsensusErrors        *prometheus.CounterVec
 }
 
 func InitMetrics(version string) AppMetrics {
@@ -68,11 +69,21 @@ func InitMetrics(version string) AppMetrics {
 			Name:      "fetch_errors_total",
 			Help:      "Total number of errors fetching data from PD Assistants",
 		},
-		[]string{"pd_assistant"},
+		[]string{"pd_assistant", "type"},
+	)
+
+	am.ConsensusErrors = promauto.With(am.Registry).NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "pd_assistant",
+			Name:      "consensus_errors_total",
+			Help:      "Total number of errors in consensus check",
+		},
+		[]string{},
 	)
 
 	am.Config.WithLabelValues(version).Set(1)
 	am.CertUpdateErrors.WithLabelValues().Add(0)
+	am.ConsensusErrors.WithLabelValues().Add(0)
 
 	am.Registry.MustRegister()
 	return am

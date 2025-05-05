@@ -106,25 +106,29 @@ func (c *Client) GetCiliumNodes() ([]string, error) {
 }
 
 // UpdateCertificate updates the certificate in Kubernetes with the provided IP addresses.
-func (c *Client) UpdateCertificate(conf cfg.AppConfig, IPs []string) error {
+func (c *Client) UpdateCertificate(conf cfg.AppConfig, inIPs []string) error {
 	client, err := cmclient.NewForConfig(c.Config)
 	if err != nil {
 		return err
 	}
 
-	// Override IP addresses from the configuration
-	conf.Certificate.Spec.IPAddresses = IPs
-	conf.Certificate.SetAnnotations(injectAnnotations(conf.Certificate))
+	// Add the IPs to the certificate loaded from the configuration
+	IPs := append(conf.Certificate.Spec.IPAddresses, inIPs...)
 
+	// Check if the certificate already exists
 	certificate, err := client.CertmanagerV1().Certificates(conf.Certificate.Namespace).Get(context.TODO(), conf.Certificate.Name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			glog.Infof("Certificate %s/%s not found, creating a new one", conf.Certificate.Namespace, conf.Certificate.Name)
-			_, err = client.CertmanagerV1().Certificates(conf.Certificate.Namespace).Create(context.TODO(), &conf.Certificate, metav1.CreateOptions{})
+			// Override IP addresses from the configuration
+			newCert := conf.Certificate.DeepCopy()
+			newCert.Spec.IPAddresses = IPs
+			newCert.SetAnnotations(injectAnnotations(conf.Certificate))
+			glog.Infof("Certificate %s/%s not found, creating a new one", newCert.Namespace, newCert.Name)
+			_, err = client.CertmanagerV1().Certificates(newCert.Namespace).Create(context.TODO(), newCert, metav1.CreateOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to create certificate %s/%s: %s", conf.Certificate.Namespace, conf.Certificate.Name, err.Error())
+				return fmt.Errorf("failed to create certificate %s/%s: %s", newCert.Namespace, newCert.Name, err.Error())
 			}
-			glog.Infof("Certificate %s/%s created successfully", conf.Certificate.Namespace, conf.Certificate.Name)
+			glog.Infof("Certificate %s/%s created successfully", newCert.Namespace, newCert.Name)
 			return nil
 		}
 		return fmt.Errorf("failed to get certificate %s/%s: %s", certificate.Namespace, conf.Certificate.Name, err.Error())
