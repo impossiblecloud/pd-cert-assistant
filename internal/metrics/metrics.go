@@ -19,6 +19,7 @@ type AppMetrics struct {
 	CertUpdateErrors       *prometheus.CounterVec
 	PDAssistantFetchErrors *prometheus.CounterVec
 	ConsensusErrors        *prometheus.CounterVec
+	K8sPollErrors          *prometheus.CounterVec
 }
 
 func InitMetrics(version string) AppMetrics {
@@ -81,9 +82,19 @@ func InitMetrics(version string) AppMetrics {
 		[]string{},
 	)
 
+	am.K8sPollErrors = promauto.With(am.Registry).NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "pd_assistant",
+			Name:      "k8s_poll_errors_total",
+			Help:      "Total number of errors polling k8s API",
+		},
+		[]string{},
+	)
+
 	am.Config.WithLabelValues(version).Set(1)
 	am.CertUpdateErrors.WithLabelValues().Add(0)
 	am.ConsensusErrors.WithLabelValues().Add(0)
+	am.K8sPollErrors.WithLabelValues().Add(0)
 
 	am.Registry.MustRegister()
 	return am

@@ -140,6 +140,7 @@ func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 		glog.V(4).Info("Fetching CiliumNode resources from Kubernetes API")
 		ciliumNodeIPs, err := kc.GetCiliumNodes()
 		if err != nil {
+			s.Metrics.K8sPollErrors.WithLabelValues().Inc()
 			glog.Errorf("Failed to fetch CiliumNodes: %v", err)
 		} else {
 			s.IPAddresses = ciliumNodeIPs
