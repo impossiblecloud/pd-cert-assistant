@@ -136,7 +136,7 @@ func (c *Client) UpdateCertificate(conf cfg.AppConfig, inIPs []string) error {
 
 	// Check if the IPs are already set and are the same as the current ones
 	if utils.IPListsEqual(certificate.Spec.IPAddresses, IPs) {
-		glog.V(6).Infof("Certificate %s/%s already has the same IPs, no update needed", conf.Certificate.Namespace, conf.Certificate.Name)
+		glog.V(4).Infof("Certificate %s/%s already has the same IPs, no update needed", conf.Certificate.Namespace, conf.Certificate.Name)
 		return nil
 	}
 
