@@ -83,7 +83,7 @@ func (s *State) getAllIPAddresses(conf cfg.AppConfig, pdaAddresses []string) ([]
 	allIPAddresses := []string{}
 	// Iterate over pd-assistant addresses and fetch their local IPs
 	for _, pdaAddress := range pdaAddresses {
-		glog.V(6).Infof("Fetching local IPs from pd-assistant: %s", pdaAddress)
+		glog.V(4).Infof("Fetching local IPs from pd-assistant: %s", pdaAddress)
 		ips, err := api.GetLocalIPs(conf, pdaAddress)
 		if err != nil {
 			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "local").Inc()
@@ -107,7 +107,7 @@ func (s *State) allIPsConsesusCheck(conf cfg.AppConfig, pdaAddresses []string) (
 
 	// Iterate over pd-assistant addresses, fetch all IPs they've found and compare them between each other
 	for id, pdaAddress := range pdaAddresses {
-		glog.V(6).Infof("Fetching all IPs from pd-assistant: %s", pdaAddress)
+		glog.V(4).Infof("Fetching all IPs from pd-assistant for consensus check: %s", pdaAddress)
 		ips, err := api.GetAllIPs(conf, pdaAddress)
 		if err != nil {
 			s.Metrics.PDAssistantFetchErrors.WithLabelValues(pdaAddress, "all").Inc()
@@ -124,7 +124,7 @@ func (s *State) allIPsConsesusCheck(conf cfg.AppConfig, pdaAddresses []string) (
 		} else {
 			// Compare the fetched IPs with the sample IPs
 			if !utils.IPListsEqual(sampleIPs, ips) {
-				glog.V(0).Infof("All IPs consensus error: all IPs are not equal between pd-assistants: %s and %s", pdaAddresses[0], pdaAddress)
+				glog.Errorf("Consensus error: all IPs are not equal between pd-assistants: %s and %s", pdaAddresses[0], pdaAddress)
 				glog.V(8).Infof("Sample all IPs from %s: %+v", pdaAddresses[0], sampleIPs)
 				glog.V(8).Infof("Fetched all IPs from %s: %+v", pdaAddress, ips)
 				return false, nil
@@ -137,6 +137,7 @@ func (s *State) allIPsConsesusCheck(conf cfg.AppConfig, pdaAddresses []string) (
 // IPWatchLoop continuously fetches CiliumNode IPs and updates the state
 func (s *State) IPWatchLoop(conf cfg.AppConfig, kc k8s.Client) {
 	for {
+		glog.V(4).Info("Fetching CiliumNode resources from Kubernetes API")
 		ciliumNodeIPs, err := kc.GetCiliumNodes()
 		if err != nil {
 			glog.Errorf("Failed to fetch CiliumNodes: %v", err)
@@ -187,7 +188,7 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 		s.AllIPAddresses = allIPAddresses
 		s.Metrics.AllIPs.WithLabelValues().Set(float64(len(allIPAddresses)))
 		glog.V(6).Infof("All IPs fetched from pd-assistants: %+v", s.AllIPAddresses)
-		glog.V(6).Info("Checking for certificate updates")
+		glog.V(4).Info("Checking for certificate updates")
 
 		// Check IP address consensus
 		if conf.PDAssistantConsensus {
@@ -200,7 +201,7 @@ func (s *State) FetchIPsAndUpdateCertLoop(conf cfg.AppConfig, kc k8s.Client) {
 				glog.Errorf("IP address consensus check failed, skipping certificate update")
 				continue
 			}
-			glog.V(6).Info("IP address consensus check passed")
+			glog.V(4).Info("IP address consensus check passed")
 		}
 
 		// Update the certificate with the new IPs if needed
