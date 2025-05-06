@@ -58,8 +58,6 @@ type AppConfig struct {
 	KubernetesPollInterval int
 	// PDAssistantPollInterval is the interval for polling all pd-assistants in seconds.
 	PDAssistantPollInterval int
-	// CertUpdateInterval is the interval for updating PD certificate in seconds.
-	CertUpdateInterval int
 }
 
 // LoadCertificateYaml loads a certificate YAML file and unmarshals it into a Certificate object.

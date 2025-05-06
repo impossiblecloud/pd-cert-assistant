@@ -39,7 +39,7 @@ func main() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to the kubeconfig file (optional)")
 	flag.IntVar(&config.KubernetesPollInterval, "k8s-poll-interval", 60, "Interval for polling Kubernetes in seconds")
 	// PD assistant parameters
-	flag.IntVar(&config.PDAssistantPollInterval, "pd-assistant-poll-interval", 120, "Interval for polling all pd-assistants in seconds")
+	flag.IntVar(&config.PDAssistantPollInterval, "pd-assistant-poll-interval", 120, "Interval for polling all pd-assistants and checking/updating certificate, in seconds")
 	flag.StringVar(&config.PDAssistantHostPrefix, "pd-assistant-host-prefix", "pd-assistant", "Host prefix for PD Assistant instances")
 	flag.StringVar(&config.PDAssistantScheme, "pd-assistant-scheme", "https", "Scheme for PD Assistant instances (http or https)")
 	flag.StringVar(&config.PDAssistantPort, "pd-assistant-port", "443", "Port for PD Assistant instances")
@@ -47,7 +47,6 @@ func main() {
 	flag.StringVar(&pdAssistantURLs, "pd-assistant-urls", "", "List of PD Assistant URLs (comma-separated). Overrides --pd-assistant-host-prefix and ignores --pd-address auto-discovery if provided")
 	flag.BoolVar(&config.PDAssistantConsensus, "pd-assistant-consensus", false, "Require consensus from all PD Assistant instances before updating the certificate")
 	// Certificate parameters
-	flag.IntVar(&config.CertUpdateInterval, "cert-update-interval", 180, "Interval for updating PD certificate in seconds")
 	flag.StringVar(&certFilePath, "certificate-file", "/app/conf/", "Path to a Certificate YAML file to be used as a template")
 	// PD discovery parameters
 	flag.StringVar(&config.PDDiscoveryConfig.URL, "pd-discovery-url", "", "PD Discovery service URL")
